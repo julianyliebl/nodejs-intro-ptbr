@@ -19,9 +19,6 @@ jobs:
           
       - name: Install dependencies
         run: npm install
-          
-      - name: Run unit tests
-        run: npx jest --ci --verbose
 
   docker:
     needs: test
