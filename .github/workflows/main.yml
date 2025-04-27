@@ -16,35 +16,50 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 18
+          cache: 'npm'
           
       - name: Install dependencies
-        run: npm install
+        run: npm ci # Mais seguro que npm install para CI
       
       - name: Run tests
-        run: npm test  # Executa Jest com cobertura
+        run: npm test
       
-      - name: Upload coverage
+      - name: Upload coverage report
         uses: actions/upload-artifact@v3
         with:
           name: coverage-report
           path: coverage/
+          retention-days: 5
 
   docker:
-    needs: test  # Só executa se os testes passarem
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
       
-      - name: Build Docker image
-        run: docker build -t hello-world-app .
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
         
-      - name: Run container tests
+      - name: Test container
         run: |
-          docker run --name test-app -d -p 3000:3000 hello-world-app
-          sleep 5 # Wait for app to start
+          docker run --name test-app -d -p 3000:3000 ghcr.io/${{ github.repository }}:${{ github.sha }}
+          sleep 5
           curl -s http://localhost:3000 | grep "Hello World"
           docker stop test-app
           docker rm test-app
