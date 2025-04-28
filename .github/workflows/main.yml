@@ -18,10 +18,12 @@ jobs:
           node-version: 20
           
       - name: Install dependencies
-        run: npm install  # Usando install em vez de ci para evitar erro de lock file
-      
+        run: |
+          npm install
+          npm install -g jest  # Instala globalmente para garantir acesso
+          
       - name: Run tests
-        run: npm test
+        run: npx jest --coverage --forceExit  # Usa npx para garantir acesso ao jest
 
   docker:
     needs: test
