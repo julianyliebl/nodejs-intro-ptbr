@@ -1,4 +1,4 @@
-name: CI Pipeline with Docker
+name: CI/CD Pipeline with Docker
 
 on:
   push:
@@ -10,56 +10,63 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      
+      - name: Checkout code
+        uses: actions/checkout@v4  # Atualizado para v4
+        
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20  # Versão mais recente LTS
           cache: 'npm'
           
       - name: Install dependencies
-        run: npm ci # Mais seguro que npm install para CI
+        run: npm ci
       
-      - name: Run tests
-        run: npm test
+      - name: Run tests with coverage
+        run: npm test -- --coverage
       
       - name: Upload coverage report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage/
-          retention-days: 5
+          retention-days: 7
 
   docker:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v4
+      - name: Build and push
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
         
       - name: Test container
         run: |
           docker run --name test-app -d -p 3000:3000 ghcr.io/${{ github.repository }}:${{ github.sha }}
           sleep 5
-          curl -s http://localhost:3000 | grep "Hello World"
+          curl -s http://localhost:3000 | grep "Hello World" || (docker logs test-app && exit 1)
           docker stop test-app
           docker rm test-app
